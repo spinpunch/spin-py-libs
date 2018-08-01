@@ -1,0 +1,5 @@
+certifi>=2018.1.18
+
+# note that some version of Twisted is required to use the HTTP libs,
+# but different users of this library might want different versions,
+# so none is specified here.
