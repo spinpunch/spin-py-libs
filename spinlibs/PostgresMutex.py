@@ -10,7 +10,7 @@ from struct import unpack
 # postgres requires the lock ID to be a 64-bit integer. Use first bits from SHA-256 hash.
 def lock_name_hash(lock_name):
     # <Q means "little-endian signed long long"
-    return unpack('<q', sha256(lock_name).digest()[:8])
+    return unpack('<q', sha256(lock_name.encode('utf-8')).digest()[:8])
 
 @contextmanager
 def acquire(db_engine, lock_name):

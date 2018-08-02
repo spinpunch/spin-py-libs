@@ -13,12 +13,12 @@ import twisted.web.iweb
 import twisted.web.client
 import twisted.web.http_headers
 import twisted.web.error
-from zope.interface import implements
+from zope.interface import implementer
 import traceback
 import time
 import certifi
 from collections import deque
-from urllib import urlencode
+from six.moves.urllib.parse import urlencode
 
 # reduce log verbosity
 twisted.internet.protocol.Factory.noisy = False
@@ -43,8 +43,8 @@ else:
         return twisted.internet._sslverify.OpenSSLCertificateAuthorities(certs)
 
 # helper that feeds an in-memory request body to twisted.web.client.Agent
+@implementer(twisted.web.iweb.IBodyProducer)
 class AgentBodySender(object):
-    implements(twisted.web.iweb.IBodyProducer)
     def __init__(self, body):
         assert isinstance(body, bytes)
         self.body = body
@@ -102,8 +102,8 @@ class AgentAdaptor(object):
 
 # Twisted attempts to rely on the host OpenSSL's trust store, which doesn't work on OSX.
 # Instead, manually read in the certifi trust store.
+@implementer(twisted.web.iweb.IPolicyForHTTPS)
 class AgentHTTPSPolicy(object):
-    implements(twisted.web.iweb.IPolicyForHTTPS)
     def __init__(self):
         # read all CA certs supplied by certifi
         # this is a file located at certifi.where() with many certs concatenated together
@@ -323,7 +323,7 @@ class AsyncHTTPRequester(object):
 
         self.queue.append(request)
         if self.verbosity >= 1:
-            print 'AsyncHTTPRequester queueing request %s, %d now in queue' % (repr(request), len(self.queue))
+            print('AsyncHTTPRequester queueing request %s, %d now in queue' % (repr(request), len(self.queue)))
         if self.semaphore:
             self.semaphore.run(self._send_request)
         else:
@@ -357,7 +357,7 @@ class AsyncHTTPRequester(object):
         self.n_fired += 1
         self.on_wire.add(request)
         if self.verbosity >= 1:
-            print 'AsyncHTTPRequester opening connection %s, %d now in queue, %d now on wire' % (repr(request), len(self.queue), len(self.on_wire))
+            print('AsyncHTTPRequester opening connection %s, %d now in queue, %d now on wire' % (repr(request), len(self.queue), len(self.on_wire)))
 
         getter = self.make_web_getter(request, bytes(request.url),
                                       method = bytes(request.method),
@@ -438,9 +438,9 @@ class AsyncHTTPRequester(object):
         self.n_ok += 1
         self.on_wire.remove(request)
         if self.verbosity >= 1:
-            print 'AsyncHTTPRequester got response for', request
+            print('AsyncHTTPRequester got response for', request)
             if self.verbosity >= 3:
-                print 'AsyncHTTPRequester response was:', 'status', getter.status, 'headers', getter.response_headers, 'body', repr(response[:100])
+                print('AsyncHTTPRequester response was:', 'status', getter.status, 'headers', getter.response_headers, 'body', repr(response[:100]))
         try:
             request.callback_called = 1
             if request.callback_type == self.CALLBACK_FULL:
@@ -457,7 +457,7 @@ class AsyncHTTPRequester(object):
         self.n_retries += 1
         self.queue.append(request)
         if self.verbosity >= 1:
-            print 'AsyncHTTPRequester retrying failed request %s, %d now in queue' % (repr(request), len(self.queue))
+            print('AsyncHTTPRequester retrying failed request %s, %d now in queue' % (repr(request), len(self.queue)))
         if self.semaphore:
             self.semaphore.run(self._send_request)
         else:
@@ -630,7 +630,7 @@ if __name__ == '__main__':
                                  'Authorization': u'AWS abcdefg:hijklmnop'},
                       postdata = {'a':'bcd'})
 
-    print req.get_stats_html(time.time())
+    print(req.get_stats_html(time.time()))
     reactor.run()
 
-    print req.get_stats()
+    print(req.get_stats())
