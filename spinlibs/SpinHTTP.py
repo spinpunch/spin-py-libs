@@ -6,6 +6,7 @@
 
 # HTTP utilities
 
+from six import PY2, PY3
 import time, re
 
 # create RFC2822 timestamp
@@ -193,8 +194,14 @@ def twisted_request_is_ssl(request, proxy_secret = None):
 def complete_deferred_request(body, request, http_status = None):
     if body == NOT_DONE_YET:
         return body
-    if type(body) not in (str, unicode, bytes):
-        raise Exception('unexpected body type %r: %r' % (type(body), body))
+
+    if PY2:
+        if type(body) not in (str, unicode, bytes):
+            raise Exception('unexpected body type %r: %r' % (type(body), body))
+    else:
+        if type(body) is not bytes:
+            raise Exception('unexpected body type %r: %r' % (type(body), body))
+
     if hasattr(request, '_disconnected') and request._disconnected: return
     if http_status:
         request.setResponseCode(http_status)
