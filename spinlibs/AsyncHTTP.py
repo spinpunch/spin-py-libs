@@ -173,7 +173,8 @@ class AsyncHTTPRequester(object):
             if self.headers:
                 assert isinstance(self.headers, dict)
                 final_headers = {}
-                for k, v in self.headers.iteritems():
+                for k in self.headers:
+                    v = self.headers[k]
                     k = bytes(k)
                     if not isinstance(v, list):
                         v = [v,]
@@ -566,11 +567,11 @@ class AsyncHTTPRequester(object):
     def merge_stats(statlist):
         ret = {}
         for stats in statlist:
-            for key, val in stats.iteritems():
+            for key in stats:
                 if key in ('queue', 'on_wire', 'waiting_for_retry'):
-                    ret[key] = ret.get(key,[]) + val
+                    ret[key] = ret.get(key,[]) + stats[key]
                 else:
-                    ret[key] = ret.get(key,0) + val
+                    ret[key] = ret.get(key,0) + stats[key]
         return ret
 
     # convert JSON stats to HTML
