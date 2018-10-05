@@ -19,6 +19,8 @@ import time
 import certifi
 from collections import deque
 from six.moves.urllib.parse import urlencode
+from six.moves import range as xrange
+from six import PY2
 
 # reduce log verbosity
 twisted.internet.protocol.Factory.noisy = False
@@ -125,7 +127,11 @@ class AgentHTTPSPolicy(object):
         self.trust_root = trustRootFromCertificates(certs)
 
     def creatorForNetloc(self, hostname, post):
-        return twisted.internet.ssl.optionsForClientTLS(unicode(hostname), trustRoot = self.trust_root)
+        if PY2:
+            hostname = unicode(hostname)
+        elif isinstance(hostname, bytes):
+            hostname = hostname.decode('utf-8')
+        return twisted.internet.ssl.optionsForClientTLS(hostname, trustRoot = self.trust_root)
 
 agent_https_policy = AgentHTTPSPolicy()
 
@@ -158,7 +164,7 @@ class AsyncHTTPRequester(object):
             self.user_agent = user_agent
             self.tries = 1
         def __hash__(self): return hash((self.url, self.method, self.fire_time, self.callback))
-        def __repr__(self): return self.method + ' ' + self.url
+        def __repr__(self): return '%s %s' % (self.method, self.url)
         def get_stats(self):
             return {'method':self.method, 'url':self.url, 'time':self.fire_time, 'tries': self.tries, 'callback': self.callback_called}
 
@@ -175,15 +181,21 @@ class AsyncHTTPRequester(object):
                 final_headers = {}
                 for k in self.headers:
                     v = self.headers[k]
-                    k = bytes(k)
+                    if PY2:
+                        k = bytes(k)
+                    else:
+                        # Python 3+
+                        if isinstance(k, str):
+                            warnings.append('key of HTTP header "%s" should be bytes, not unicode/str. Fixed it for you.' % k)
+                            k = k.encode('utf-8')
                     if not isinstance(v, list):
                         v = [v,]
                     for i in xrange(len(v)):
                         if not isinstance(v[i], bytes):
                             # uh-oh, a non-bytes value!
                             # not fatal, but the calling code should be fixed.
-                            if isinstance(v[i], unicode):
-                                warnings.append('value of HTTP header "%s" should be bytes, not unicode. Fixed it for you.' % k)
+                            if (PY2 and isinstance(v[i], unicode)) or (not PY2 and isinstance(v[i], str)):
+                                warnings.append('value of HTTP header "%s" should be bytes, not unicode/str. Fixed it for you.' % k)
                                 v[i] = v[i].encode('utf-8')
                             else:
                                 raise Exception('non-string-valued HTTP header "%s": %r' % (k, type(v[i])))
@@ -193,7 +205,16 @@ class AsyncHTTPRequester(object):
             # twisted.web.client.Agent does not apply a User-Agent header automatically. Let's do that here.
             if self.user_agent:
                 if not final_headers: final_headers = {}
-                final_headers['User-Agent'] = [self.user_agent.encode('utf-8')]
+                if PY2:
+                    encoded_user_agent = bytes(self.user_agent)
+                else:
+                    # Python 3+
+                    if isinstance(self.user_agent, str):
+                        warnings.append('HTTP user_agent "%s" should be bytes, not unicode/str. Fixed it for you.' % self.user_agent)
+                        encoded_user_agent = self.user_agent.encode('utf-8')
+                    else:
+                        encoded_user_agent = self.user_agent
+                final_headers[b'User-Agent'] = [encoded_user_agent,]
 
             if self.postdata:
                 if isinstance(self.postdata, dict):
@@ -201,7 +222,7 @@ class AsyncHTTPRequester(object):
                     final_postdata = urlencode(self.postdata).encode('utf-8')
                     if final_headers is None:
                         final_headers = {}
-                    final_headers['Content-Type'] = [b'application/x-www-form-urlencoded',]
+                    final_headers[b'Content-Type'] = [b'application/x-www-form-urlencoded',]
                 elif isinstance(self.postdata, bytes):
                     final_postdata = self.postdata
                 else:
@@ -287,7 +308,7 @@ class AsyncHTTPRequester(object):
             cb()
 
     # wrapper for queue_request that returns a Deferred
-    def queue_request_deferred(self, qtime, url, method='GET', headers=None, postdata=None, preflight_callback=None, max_tries=None, callback_type = CALLBACK_BODY_ONLY, accept_http_errors = False, user_agent = None):
+    def queue_request_deferred(self, qtime, url, method=b'GET', headers=None, postdata=None, preflight_callback=None, max_tries=None, callback_type = CALLBACK_BODY_ONLY, accept_http_errors = False, user_agent = None):
         d = twisted.internet.defer.Deferred()
 
         if callback_type == self.CALLBACK_BODY_ONLY:
@@ -306,7 +327,7 @@ class AsyncHTTPRequester(object):
                            user_agent=user_agent)
         return d
 
-    def queue_request(self, qtime, url, user_callback, method='GET', headers=None, postdata=None, error_callback=None, preflight_callback=None, max_tries=None, callback_type = CALLBACK_BODY_ONLY, accept_http_errors = False, user_agent = None):
+    def queue_request(self, qtime, url, user_callback, method=b'GET', headers=None, postdata=None, error_callback=None, preflight_callback=None, max_tries=None, callback_type = CALLBACK_BODY_ONLY, accept_http_errors = False, user_agent = None):
         if self.total_request_limit > 0 and len(self.queue) >= self.total_request_limit:
             self.log_exception_func('AsyncHTTPRequester queue is full, dropping request %s %s!' % (method,url))
             self.n_dropped += 1
@@ -360,9 +381,31 @@ class AsyncHTTPRequester(object):
         if self.verbosity >= 1:
             print('AsyncHTTPRequester opening connection %s, %d now in queue, %d now on wire' % (repr(request), len(self.queue), len(self.on_wire)))
 
-        getter = self.make_web_getter(request, bytes(request.url),
-                                      method = bytes(request.method),
-                                      headers= final_headers,
+        if PY2:
+            encoded_url = bytes(request.url)
+            encoded_method = bytes(request.method)
+        else:
+            warnings = []
+
+            if isinstance(request.url, str):
+                warnings.append('URL %s should be bytes, not str. Fixed it for you.' % request.url)
+                encoded_url = request.url.encode('utf-8')
+            else:
+                encoded_url = request.url
+            if isinstance(request.method, str):
+                warnings.append('method %s should be bytes, not str. Fixed it for you.' % request.method)
+                encoded_method = request.method.encode('utf-8')
+            else:
+                encoded_method = request.method
+
+            for w in warnings:
+                if w not in self.warnings_seen:
+                    self.warnings_seen.add(w)
+                    self.log_exception_func('AsyncHTTP Request Setup Warning: ' + w + ' for ' + repr(request))
+
+        getter = self.make_web_getter(request, encoded_url,
+                                      method = encoded_method,
+                                      headers = final_headers,
                                       user_agent = request.user_agent,
                                       timeout = self.request_timeout,
                                       postdata = final_postdata)
@@ -577,7 +620,7 @@ class AsyncHTTPRequester(object):
     # convert JSON stats to HTML
     @staticmethod
     def stats_to_html(stats, cur_time, expose_info = True):
-        ret = '<table border="1" cellspacing="0">'
+        ret = u'<table border="1" cellspacing="0">'
         for key in ('accepted', 'dropped', 'fired', 'retries', 'done_ok', 'done_error', 'missing', 'num_on_wire','num_in_queue','num_waiting_for_retry', 'watchdog_created', 'watchdog_cancelled', 'watchdog_fired_late', 'watchdog_fired_real', 'watchdog_cancel_omitted'):
             val = str(stats[key])
             if key == 'missing' and stats[key] > 0:
@@ -591,7 +634,7 @@ class AsyncHTTPRequester(object):
                 ret += '<table border="1" cellspacing="1">'
                 ret += '<tr><td>URL</td><td>AGE</td></tr>'
                 for val in stats[key]:
-                    url = val['method'] + ' ' + val['url']
+                    url = '%s %s' % (val['method'], val['url'])
                     age = '%.2f' % (cur_time - val['time'])
                     ret += '<tr><td>%s</td><td>%s</td></tr>' % (url, age)
                 ret += '</table><p>'
@@ -612,23 +655,23 @@ if __name__ == '__main__':
     log.startLogging(sys.stdout)
     req = AsyncHTTPRequester(2, 10, 10, 1, lambda x: log.msg(x), max_tries = 3, retry_delay = 1.0, api = 'Agent')
     server_time = int(time.time())
-    req.queue_request(server_time, 'http://localhost:8000/clientcode/Predicates.js', lambda x: log.msg('RESPONSE A'))
-    req.queue_request(server_time, 'http://localhost:8000/clientcode/SPay.js', lambda x: log.msg('RESPONSE B'))
-    req.queue_request(server_time, 'http://localhost:8005/', lambda x: log.msg('RESPONSE C'))
-    req.queue_request(server_time, 'http://localhost:8000/', lambda x: log.msg('RESPONSE D'))
-    req.queue_request(server_time, 'http://localhost:8000/', lambda x: log.msg('RESPONSE D'), postdata = 'body data')
-    req.queue_request(server_time, 'https://wrong.hostname.badssl.com/', lambda x: log.msg('RESPONSE D'))
-    req.queue_request(server_time, 'https://www.battlehouse.com/feed/atom/', lambda x: log.msg('RESPONSE E'),
-                      headers = {'X-AsyncHTTP-Test': 'foobar'})
-    req.queue_request(server_time, 'https://s3-external-1.amazonaws.com/spinpunch-public/asdf', lambda x: log.msg('RESPONSE F %r' % x))
+    req.queue_request(server_time, b'http://localhost:8000/clientcode/Predicates.js', lambda x: log.msg('RESPONSE A'))
+    req.queue_request(server_time, b'http://localhost:8000/clientcode/SPay.js', lambda x: log.msg('RESPONSE B'))
+    req.queue_request(server_time, b'http://localhost:8005/', lambda x: log.msg('RESPONSE C'))
+    req.queue_request(server_time, b'http://localhost:8000/', lambda x: log.msg('RESPONSE D'))
+    req.queue_request(server_time, b'http://localhost:8000/', lambda x: log.msg('RESPONSE D'), postdata = b'body data')
+    req.queue_request(server_time, b'https://wrong.hostname.badssl.com/', lambda x: log.msg('RESPONSE D'))
+    req.queue_request(server_time, b'https://www.battlehouse.com/feed/atom/', lambda x: log.msg('RESPONSE E'),
+                      headers = {b'X-AsyncHTTP-Test': b'foobar'})
+    req.queue_request(server_time, b'https://s3-external-1.amazonaws.com/spinpunch-public/asdf', lambda x: log.msg('RESPONSE F %r' % x))
 
-    req.queue_request(server_time, 'https://s3-external-1.amazonaws.com/spinpunch-scratch/hello2.txt',
+    req.queue_request(server_time, b'https://s3-external-1.amazonaws.com/spinpunch-scratch/hello2.txt',
                       lambda x: log.msg("PUT SUCCESSFUL %r" % x),
-                      method = u'PUT',
-                      headers = {'Date': 'Mon, 01 Jan 2018 11:08:38 GMT',
-                                 'Content-Length': u'5',
-                                 'Content-Type': 'text/plain',
-                                 'Authorization': u'AWS abcdefg:hijklmnop'},
+                      method = b'PUT',
+                      headers = {b'Date': b'Mon, 01 Jan 2018 11:08:38 GMT',
+                                 b'Content-Length': b'5',
+                                 b'Content-Type': b'text/plain',
+                                 b'Authorization': b'AWS abcdefg:hijklmnop'},
                       postdata = {'a':'bcd'})
 
     print(req.get_stats_html(time.time()))

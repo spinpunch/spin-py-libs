@@ -6,7 +6,7 @@
 
 # HTTP utilities
 
-from six import PY2, PY3
+from six import PY2
 import time, re
 
 # create RFC2822 timestamp
