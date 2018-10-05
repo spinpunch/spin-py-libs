@@ -186,7 +186,8 @@ class AsyncHTTPRequester(object):
                     else:
                         # Python 3+
                         if isinstance(k, str):
-                            warnings.append('key of HTTP header "%s" should be bytes, not unicode/str. Fixed it for you.' % k)
+                            # not really relevant to warn about this, just fix it silently.
+                            # warnings.append('key of HTTP header "%s" should be bytes, not unicode/str. Fixed it for you.' % k)
                             k = k.encode('utf-8')
                     if not isinstance(v, list):
                         v = [v,]
@@ -210,7 +211,8 @@ class AsyncHTTPRequester(object):
                 else:
                     # Python 3+
                     if isinstance(self.user_agent, str):
-                        warnings.append('HTTP user_agent "%s" should be bytes, not unicode/str. Fixed it for you.' % self.user_agent)
+                        # not really relevant to warn about this, just fix it silently.
+                        #warnings.append('HTTP user_agent "%s" should be bytes, not unicode/str. Fixed it for you.' % self.user_agent)
                         encoded_user_agent = self.user_agent.encode('utf-8')
                     else:
                         encoded_user_agent = self.user_agent
@@ -388,12 +390,14 @@ class AsyncHTTPRequester(object):
             warnings = []
 
             if isinstance(request.url, str):
-                warnings.append('URL %s should be bytes, not str. Fixed it for you.' % request.url)
+                # not really relevant to warn about this, just fix it silently.
+                # warnings.append('URL %s should be bytes, not str. Fixed it for you.' % request.url)
                 encoded_url = request.url.encode('utf-8')
             else:
                 encoded_url = request.url
             if isinstance(request.method, str):
-                warnings.append('method %s should be bytes, not str. Fixed it for you.' % request.method)
+                # not really relevant to warn about this, just fix it silently.
+                # warnings.append('method %s should be bytes, not str. Fixed it for you.' % request.method)
                 encoded_method = request.method.encode('utf-8')
             else:
                 encoded_method = request.method
