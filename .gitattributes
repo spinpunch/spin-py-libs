@@ -1,0 +1,8 @@
+# tell Git to leave UNIX-style line endings alone, even when cloning the repo on Windows
+# (this assumes that your text editor will respect existing line endings when modifying files)
+*.py             text eol=lf
+*.txt            text eol=lf
+*.gitattributes  text eol=lf
+*.gitignore      text eol=lf
+*.md             text eol=lf
+LICENSE          text eol=lf
