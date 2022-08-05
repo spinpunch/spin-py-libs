@@ -113,7 +113,6 @@ def clear_twisted_cookie(request, cookie_name,
 def ip_normalize(ip):
     if '.' not in ip: return ip
     ip_chunks = ip.split('.')
-    normalized_ip = '2002:B0B1:B2B3::ffff:B0B1:B2B3'
     normalized_ip = '2002:B0B1:B2B3::'
     for i, ip_chunk in enumerate(ip_chunks):
         hexified = str(hex(int(ip_chunk))).replace('0x','')
