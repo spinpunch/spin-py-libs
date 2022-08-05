@@ -8,6 +8,7 @@
 
 from six import PY2
 import time, re
+from ipaddress import IPv6Address, IPv6Network
 
 # create RFC2822 timestamp
 def format_http_time(stamp):
@@ -108,11 +109,33 @@ def clear_twisted_cookie(request, cookie_name,
 # get info about an HTTP(S) request, "seeing through" reverse proxies back to the client
 # NOTE! YOU MUST SANITIZE (DELETE HEADERS FROM) REQUESTS ACCEPTED DIRECTLY FROM CLIENTS TO AVOID SPOOFING!
 
-# match unroutable IP addresses (IPv4 and IPv6)
-private_ip_re = re.compile('^(127\.)|(192\.168\.)|(10\.)|(172\.1[6-9]\.)|(172\.2[0-9]\.)|(172\.3[0-1]\.)|(::1$)|([fF][cCdD])|(unknown)')
+# normalize IP input to IPv6 address
+def ip_normalize(ip):
+    if '.' not in ip: return ip
+    ip_chunks = ip.split('.')
+    normalized_ip = '2002:B0B1:B2B3::ffff:B0B1:B2B3'
+    normalized_ip = '2002:B0B1:B2B3::'
+    for i, ip_chunk in enumerate(ip_chunks):
+        hexified = str(hex(int(ip_chunk))).replace('0x','')
+        if len(hexified) == 1: hexified = '0' + hexified
+        normalized_ip = normalized_ip.replace('B%d' % i, hexified)
+    return normalized_ip
 
 def is_private_ip(ip):
-    return bool(private_ip_re.match(ip))
+    if 'unknown' in ip: return True
+    ip = int(IPv6Address(ip_normalize(ip)))
+    cidrs = ['::/128','::1/128','::ffff:0:0/96','::/96', '100::/64', '2001:10::/28', '2001:db8::/32', 'fc00::/7', 'fe80::/10',
+             'fec0::/10', 'ff00::/8', '2002::/24', '2002:a00::/24', '2002:6440::/26', '2002:7f00::/24', '2002:a9fe::/32', '2002:ac10::/28', '2002:c000::/40',
+             '2002:c000:200::/40', '2002:c0a8::/32', '2002:c612::/31', '2002:c633:6400::/40', '2002:cb00:7100::/40', '2002:e000::/20',
+             '2002:f000::/20', '2002:ffff:ffff::/48', '2001::/40', '2001:0:a00::/40', '2001:0:7f00::/40', '2001:0:a9fe::/48', '2001:0:ac10::/44',
+             '2001:0:c000::/56', '2001:0:c000:200::/56', '2001:0:c0a8::/48', '2001:0:c612::/47', '2001:0:c633:6400::/56', '2001:0:cb00:7100::/56',
+             '2001:0:e000::/36', '2001:0:f000::/36', '2001:0:ffff:ffff::/64']
+    # there are only 40 entries, so no need to do a more efficient search than low to high
+    for cidr in cidrs:
+        net = IPv6Network(cidr)
+        if ip >= int(net[0]) and ip <= int(net[-1]):
+            return True
+    return False
 
 def get_twisted_raw_ip(request):
    # return the raw IP address of the neighbor connected to us
