@@ -115,9 +115,10 @@ def hexify(num):
 
 # normalize IP input to IPv6 address
 def ip_normalize(ip):
-    if '.' not in ip: return ip
+    if '.' not in ip:
+        return u'%s' % ip
     ip_chunks = ip.split('.')
-    return '2002:%s%s:%s%s::' % tuple(map(hexify, ip_chunks))
+    return u'2002:%s%s:%s%s::' % tuple(map(hexify, ip_chunks))
 
 # pre-cache all known private cidrs
 private_ipv6_cidrs = map(IPv6Network, [u'::/128', u'::1/128', u'::ffff:0:0/96', u'::/96', u'100::/64', u'2001:10::/28', u'2001:db8::/32',
