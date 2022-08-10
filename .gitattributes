@@ -4,5 +4,6 @@
 *.txt            text eol=lf
 *.gitattributes  text eol=lf
 *.gitignore      text eol=lf
+*.flakeu         text eol=lf
 *.md             text eol=lf
 LICENSE          text eol=lf
