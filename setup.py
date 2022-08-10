@@ -3,20 +3,20 @@ import os
 
 from setuptools import find_packages, setup
 
-__version__ = "0.5.4"
+__version__ = "0.5.5"
 
 def read_from(file):
     reply = []
     with io.open(os.path.join(here, file), encoding='utf8') as f:
-        for l in f:
-            l = l.strip()
-            if not l:
+        for line in f:
+            line = line.strip()
+            if not line:
                 break
-            if l[:2] == '-r':
-                reply += read_from(l.split(' ')[1])
+            if line[:2] == '-r':
+                reply += read_from(line.split(' ')[1])
                 continue
-            if l[0] != '#' or l[:2] != '//':
-                reply.append(l)
+            if line[0] != '#' or line[:2] != '//':
+                reply.append(line)
     return reply
 
 here = os.path.abspath(os.path.dirname(__file__))
@@ -46,7 +46,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=read_from('requirements.txt'),
-    #tests_require=read_from('test-requirements.txt'),
+    # tests_require=read_from('test-requirements.txt'),
     entry_points="""
     [console_scripts]
     """,

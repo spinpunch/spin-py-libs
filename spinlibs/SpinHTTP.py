@@ -10,34 +10,37 @@ from six import PY2
 import time, re
 from ipaddress import IPv6Address, IPv6Network
 
+from email.utils import mktime_tz, parsedate_tz
+import base64
+
+# below functions are specific to Twisted
+from twisted import __version__ as twisted_version
+from twisted.web.server import NOT_DONE_YET
+from twisted.web.http import INTERNAL_SERVER_ERROR
+from twisted.python.failure import Failure
+
+twisted_major_version = int(twisted_version.split('.')[0])
+try:
+    unicode
+except NameError:
+    unicode = str
+    long = int
+
 # create RFC2822 timestamp
 def format_http_time(stamp):
     return time.strftime('%a, %d %b %Y %H:%M:%S GMT', time.gmtime(stamp))
-
-from email.utils import mktime_tz, parsedate_tz
 
 # parse RFC2822 timestamp, inverse of format_http_time()
 def parse_http_time(http_time):
     return long(mktime_tz(parsedate_tz(http_time)))
 
-import base64
-
 # wrap/unwrap Unicode text strings for safe transmission across the AJAX connection
 # mirrors gameclient/clientcode/SPHTTP.js
-
 def unwrap_string(input):
     return unicode(base64.b64decode(str(input)).decode('utf-8'))
 
 def wrap_string(input):
     return base64.b64encode(input.encode('utf-8'))
-
-# below functions are specific to Twisted
-
-from twisted import __version__ as twisted_version
-twisted_major_version = int(twisted_version.split('.')[0])
-from twisted.web.server import NOT_DONE_YET
-from twisted.web.http import INTERNAL_SERVER_ERROR
-from twisted.python.failure import Failure
 
 # set cross-site allow headers on Twisted HTTP requests
 def _set_access_control_headers(request, origin, max_age):
@@ -102,8 +105,7 @@ def set_twisted_cookie(request, cookie_name, value, expire_time,
     # necessary for IE7+ to accept iframed cookies
     request.setHeader('P3P', 'CP="CAO DSP CURa ADMa DEVa TAIa PSAa PSDa IVAi IVDi CONi OUR UNRi OTRi BUS IND PHY ONL UNI COM NAV INT DEM CNT STA PRE GOV LOC"')
 
-def clear_twisted_cookie(request, cookie_name,
-                       domain = None, path = None, secure = None, httpOnly = False):
+def clear_twisted_cookie(request, cookie_name, domain = None, path = None, secure = None, httpOnly = False):
     set_twisted_cookie(request, cookie_name, 'deleted', 0, domain = domain, path = path, secure = secure, httpOnly = httpOnly)
 
 # get info about an HTTP(S) request, "seeing through" reverse proxies back to the client
@@ -122,25 +124,28 @@ def ip_normalize(ip):
 
 # pre-cache all known private cidrs
 private_ipv6_cidrs = map(IPv6Network, [u'::/128', u'::1/128', u'::ffff:0:0/96', u'::/96', u'100::/64', u'2001:10::/28', u'2001:db8::/32',
-         u'fc00::/7', u'fe80::/10', u'fec0::/10', u'ff00::/8', u'2002::/24', u'2002:a00::/24', u'2002:6440::/26', u'2002:7f00::/24',
-         u'2002:a9fe::/32', u'2002:ac10::/28', u'2002:c000::/40', u'2002:c000:200::/40', u'2002:c0a8::/32', u'2002:c612::/31',
-         u'2002:c633:6400::/40', u'2002:cb00:7100::/40', u'2002:e000::/20', u'2002:f000::/20', u'2002:ffff:ffff::/48', u'2001::/40',
-         u'2001:0:a00::/40', u'2001:0:7f00::/40', u'2001:0:a9fe::/48', u'2001:0:ac10::/44', u'2001:0:c000::/56', u'2001:0:c000:200::/56',
-         u'2001:0:c0a8::/48', u'2001:0:c612::/47', u'2001:0:c633:6400::/56', u'2001:0:cb00:7100::/56', u'2001:0:e000::/36',
-         u'2001:0:f000::/36', u'2001:0:ffff:ffff::/64'])
+                                       u'fc00::/7', u'fe80::/10', u'fec0::/10', u'ff00::/8', u'2002::/24', u'2002:a00::/24',
+                                       u'2002:6440::/26', u'2002:7f00::/24', u'2002:a9fe::/32', u'2002:ac10::/28', u'2002:c000::/40',
+                                       u'2002:c000:200::/40', u'2002:c0a8::/32', u'2002:c612::/31', u'2002:c633:6400::/40',
+                                       u'2002:cb00:7100::/40', u'2002:e000::/20', u'2002:f000::/20', u'2002:ffff:ffff::/48', u'2001::/40',
+                                       u'2001:0:a00::/40', u'2001:0:7f00::/40', u'2001:0:a9fe::/48', u'2001:0:ac10::/44',
+                                       u'2001:0:c000::/56', u'2001:0:c000:200::/56', u'2001:0:c0a8::/48', u'2001:0:c612::/47',
+                                       u'2001:0:c633:6400::/56', u'2001:0:cb00:7100::/56', u'2001:0:e000::/36', u'2001:0:f000::/36',
+                                       u'2001:0:ffff:ffff::/64'])
 
 def is_private_ip(ip):
-    if ip == 'unknown': return True
+    if ip == 'unknown':
+        return True
     ip = IPv6Address(ip_normalize(ip))
     # return True if IP is within any of the cidr ranges in private_ipv6_cidrs
     return any(ip in cidr for cidr in private_ipv6_cidrs)
 
 def get_twisted_raw_ip(request):
-   # return the raw IP address of the neighbor connected to us
-   if hasattr(request, 'getClientAddress'):
-       return request.getClientAddress().host # Twisted v18+
-   else:
-       return request.getClientIP() # old versions of Twisted
+    # return the raw IP address of the neighbor connected to us
+    if hasattr(request, 'getClientAddress'):
+        return request.getClientAddress().host # Twisted v18+
+    else:
+        return request.getClientIP() # old versions of Twisted
 
 def get_twisted_client_ip(request, proxy_secret = None, trust_x_forwarded = True):
     if proxy_secret:
@@ -223,7 +228,8 @@ def complete_deferred_request(body, request, http_status = None):
         if type(body) is not bytes:
             raise Exception('unexpected body type %r: %r' % (type(body), body))
 
-    if hasattr(request, '_disconnected') and request._disconnected: return
+    if hasattr(request, '_disconnected') and request._disconnected:
+        return
     if http_status:
         request.setResponseCode(http_status)
     request.write(body)

@@ -22,6 +22,11 @@ from six.moves.urllib.parse import urlencode
 from six.moves import range as xrange
 from six import PY2
 
+try:
+    unicode
+except NameError:
+    unicode = str
+
 # reduce log verbosity
 twisted.internet.protocol.Factory.noisy = False
 
@@ -30,6 +35,7 @@ if hasattr(twisted.internet.ssl, 'trustRootFromCertificates'):
     trustRootFromCertificates = twisted.internet.ssl.trustRootFromCertificates
 else:
     import twisted.internet._sslverify
+
     def trustRootFromCertificates(certificates):
         certs = []
         for cert in certificates:
@@ -47,18 +53,25 @@ else:
 # helper that feeds an in-memory request body to twisted.web.client.Agent
 @implementer(twisted.web.iweb.IBodyProducer)
 class AgentBodySender(object):
+
     def __init__(self, body):
         assert isinstance(body, bytes)
         self.body = body
         self.length = len(body)
+
     def startProducing(self, consumer):
         consumer.write(self.body)
         return twisted.internet.defer.succeed(None)
-    def pauseProducing(self): pass
-    def stopProducing(self): pass
+
+    def pauseProducing(self):
+        pass
+
+    def stopProducing(self):
+        pass
 
 # helper that accumulates an incoming response body from twisted.web.client.Agent
 class AgentBodyReceiver(twisted.internet.protocol.Protocol):
+
     def __init__(self, deferred, status_code, status_phrase):
         self.d = deferred
         self.buf = bytes()
@@ -66,8 +79,10 @@ class AgentBodyReceiver(twisted.internet.protocol.Protocol):
         # so that we can call the errback with it plus the response body.
         self.status_code = status_code
         self.status_phrase = status_phrase
+
     def dataReceived(self, data):
         self.buf += data
+
     def connectionLost(self, reason):
         assert isinstance(reason, twisted.python.failure.Failure)
         # ResponseDone: this is the normal case
@@ -90,11 +105,13 @@ class AgentBodyReceiver(twisted.internet.protocol.Protocol):
 # .response_headers, the headers in the form {key: [value0, value1, ...]}
 #   * where "key" is lower-cased
 class AgentAdaptor(object):
+
     def __init__(self, header_d):
         self.deferred = twisted.internet.defer.Deferred()
         self.status = 502 # dummy Bad Gateway status in case there is a failure before the real status comes back to us
         self.response_headers = {}
         header_d.addCallbacks(self.read_response, self.deferred.errback)
+
     def read_response(self, response):
         # note: lowercase the incoming header keys
         self.response_headers = dict((k.lower(), v) for k, v in response.headers.getAllRawHeaders())
@@ -116,7 +133,7 @@ class AgentHTTPSPolicy(object):
         cur_cert = None
         for line in open(certifi.where()).readlines():
             if line.startswith('-----BEGIN CERTIFICATE-----'):
-                cur_cert = [line,]
+                cur_cert = [line, ]
             elif cur_cert is not None:
                 cur_cert.append(line)
             if line.startswith('-----END CERTIFICATE-----'):
@@ -163,10 +180,15 @@ class AsyncHTTPRequester(object):
             self.accept_http_errors = accept_http_errors
             self.user_agent = user_agent
             self.tries = 1
-        def __hash__(self): return hash((self.url, self.method, self.fire_time, self.callback))
-        def __repr__(self): return '%s %s' % (self.method, self.url)
+
+        def __hash__(self):
+            return hash((self.url, self.method, self.fire_time, self.callback))
+
+        def __repr__(self):
+            return '%s %s' % (self.method, self.url)
+
         def get_stats(self):
-            return {'method':self.method, 'url':self.url, 'time':self.fire_time, 'tries': self.tries, 'callback': self.callback_called}
+            return {'method': self.method, 'url': self.url, 'time': self.fire_time, 'tries': self.tries, 'callback': self.callback_called}
 
         # "freeze" headers and postdata into the version we're going to submit to Twisted.
         # note that headers can be changed by the request's preflight callback, so we have to do this at the last moment before transmission.
@@ -190,7 +212,7 @@ class AsyncHTTPRequester(object):
                             # warnings.append('key of HTTP header "%s" should be bytes, not unicode/str. Fixed it for you.' % k)
                             k = k.encode('utf-8')
                     if not isinstance(v, list):
-                        v = [v,]
+                        v = [v, ]
                     for i in xrange(len(v)):
                         if not isinstance(v[i], bytes):
                             # uh-oh, a non-bytes value!
@@ -205,18 +227,19 @@ class AsyncHTTPRequester(object):
 
             # twisted.web.client.Agent does not apply a User-Agent header automatically. Let's do that here.
             if self.user_agent:
-                if not final_headers: final_headers = {}
+                if not final_headers:
+                    final_headers = {}
                 if PY2:
                     encoded_user_agent = bytes(self.user_agent)
                 else:
                     # Python 3+
                     if isinstance(self.user_agent, str):
                         # not really relevant to warn about this, just fix it silently.
-                        #warnings.append('HTTP user_agent "%s" should be bytes, not unicode/str. Fixed it for you.' % self.user_agent)
+                        # warnings.append('HTTP user_agent "%s" should be bytes, not unicode/str. Fixed it for you.' % self.user_agent)
                         encoded_user_agent = self.user_agent.encode('utf-8')
                     else:
                         encoded_user_agent = self.user_agent
-                final_headers[b'User-Agent'] = [encoded_user_agent,]
+                final_headers[b'User-Agent'] = [encoded_user_agent, ]
 
             if self.postdata:
                 if isinstance(self.postdata, dict):
@@ -224,7 +247,7 @@ class AsyncHTTPRequester(object):
                     final_postdata = urlencode(self.postdata).encode('utf-8')
                     if final_headers is None:
                         final_headers = {}
-                    final_headers[b'Content-Type'] = [b'application/x-www-form-urlencoded',]
+                    final_headers[b'Content-Type'] = [b'application/x-www-form-urlencoded', ]
                 elif isinstance(self.postdata, bytes):
                     final_postdata = self.postdata
                 else:
@@ -316,11 +339,11 @@ class AsyncHTTPRequester(object):
         if callback_type == self.CALLBACK_BODY_ONLY:
             success_cb = d.callback
             error_cb = lambda err_reason, d=d: \
-                       d.errback(twisted.python.failure.Failure(Exception('AsyncHTTP error: %r' % err_reason)))
+                d.errback(twisted.python.failure.Failure(Exception('AsyncHTTP error: %r' % err_reason)))
         elif callback_type == self.CALLBACK_FULL:
             success_cb = lambda body=None, headers=None, status=None, d=d: d.callback((body, headers, status))
             error_cb = lambda ui_reason=None, body=None, headers=None, status=None, d=d: \
-                       d.errback(twisted.python.failure.Failure(Exception('AsyncHTTP error: %r' % ui_reason)))
+                d.errback(twisted.python.failure.Failure(Exception('AsyncHTTP error: %r' % ui_reason)))
 
         self.queue_request(qtime, url, success_cb, method=method, headers=headers, postdata=postdata,
                            error_callback = error_cb,
@@ -331,7 +354,7 @@ class AsyncHTTPRequester(object):
 
     def queue_request(self, qtime, url, user_callback, method=b'GET', headers=None, postdata=None, error_callback=None, preflight_callback=None, max_tries=None, callback_type = CALLBACK_BODY_ONLY, accept_http_errors = False, user_agent = None):
         if self.total_request_limit > 0 and len(self.queue) >= self.total_request_limit:
-            self.log_exception_func('AsyncHTTPRequester queue is full, dropping request %s %s!' % (method,url))
+            self.log_exception_func('AsyncHTTPRequester queue is full, dropping request %s %s!' % (method, url))
             self.n_dropped += 1
             return
 
@@ -444,7 +467,7 @@ class AsyncHTTPRequester(object):
 
         def watchdog_func(self, getter, request):
             if self.verbosity >= 1:
-                self.log_exception_func('AsyncHTTP getter watchdog timeout at %r (deferred.called %r paused %r result %s) for %r' % \
+                self.log_exception_func('AsyncHTTP getter watchdog timeout at %r (deferred.called %r paused %r result %s) for %r' %
                                         (time.time(), getter.deferred.called, getter.deferred.paused, repr(getter.deferred.result)[:500] if getter.deferred.called else '-', request.get_stats()))
 
             self.n_watchdog_fired_real += 1
@@ -495,7 +518,7 @@ class AsyncHTTPRequester(object):
                 request.callback(body = response, headers = getter.response_headers, status = getter.status)
             else:
                 request.callback(response)
-        except:
+        except Exception:
             self.log_exception_func('AsyncHTTP Exception: ' + traceback.format_exc())
         self.idlecheck()
 
@@ -548,10 +571,10 @@ class AsyncHTTPRequester(object):
             if hasattr(reason.value, 'reasons'):
                 failure_list = reason.value.reasons
             else:
-                failure_list = [reason,]
+                failure_list = [reason, ]
             ui_failure = '---'.join([f.getTraceback() for f in failure_list])
-            self.log_exception_func('AsyncHTTPRequester error: ' + reason.getErrorMessage() + \
-                                    '\n' + ui_failure + \
+            self.log_exception_func('AsyncHTTPRequester error: ' + reason.getErrorMessage() +
+                                    '\n' + ui_failure +
                                     ' for %s (after %d tries)' % (repr(request), request.tries))
 
         request.callback_called = 2
@@ -576,7 +599,7 @@ class AsyncHTTPRequester(object):
                                            status = int(getattr(getter, 'status', 502)))
                 else:
                     request.error_callback(ui_reason)
-            except:
+            except Exception:
                 self.log_exception_func('AsyncHTTP Exception (error_callback): '+traceback.format_exc())
 
         self.idlecheck()
@@ -586,14 +609,14 @@ class AsyncHTTPRequester(object):
         queue = [x.get_stats() for x in self.queue] if expose_info else []
         on_wire = [x.get_stats() for x in self.on_wire] if expose_info else []
         waiting_for_retry = [x.get_stats() for x in self.waiting_for_retry] if expose_info else []
-        return {'accepted':self.n_accepted,
-                'dropped':self.n_dropped,
+        return {'accepted': self.n_accepted,
+                'dropped': self.n_dropped,
 
-                'fired':self.n_fired,
-                'retries':self.n_retries,
+                'fired': self.n_fired,
+                'retries': self.n_retries,
 
-                'done_ok':self.n_ok,
-                'done_error':self.n_errors,
+                'done_ok': self.n_ok,
+                'done_error': self.n_errors,
                 # all accepted requests should either be in flight, or end with OK/Error. Otherwise we're "leaking" requests.
                 'missing': self.n_accepted - (self.n_ok + self.n_errors + len(self.queue) + len(self.on_wire)),
 
@@ -604,9 +627,9 @@ class AsyncHTTPRequester(object):
                 'watchdog_fired_real': self.n_watchdog_fired_real,
                 'watchdog_cancel_omitted': self.n_watchdog_cancel_omitted,
 
-                'queue':queue, 'num_in_queue': len(self.queue),
-                'on_wire':on_wire, 'num_on_wire': len(self.on_wire),
-                'waiting_for_retry':waiting_for_retry, 'num_waiting_for_retry' : len(self.waiting_for_retry),
+                'queue': queue, 'num_in_queue': len(self.queue),
+                'on_wire': on_wire, 'num_on_wire': len(self.on_wire),
+                'waiting_for_retry': waiting_for_retry, 'num_waiting_for_retry': len(self.waiting_for_retry),
                 }
 
     # merge together statistics from multiple AsyncHTTP instances (reduce)
@@ -616,16 +639,16 @@ class AsyncHTTPRequester(object):
         for stats in statlist:
             for key in stats:
                 if key in ('queue', 'on_wire', 'waiting_for_retry'):
-                    ret[key] = ret.get(key,[]) + stats[key]
+                    ret[key] = ret.get(key, []) + stats[key]
                 else:
-                    ret[key] = ret.get(key,0) + stats[key]
+                    ret[key] = ret.get(key, 0) + stats[key]
         return ret
 
     # convert JSON stats to HTML
     @staticmethod
     def stats_to_html(stats, cur_time, expose_info = True):
         ret = u'<table border="1" cellspacing="0">'
-        for key in ('accepted', 'dropped', 'fired', 'retries', 'done_ok', 'done_error', 'missing', 'num_on_wire','num_in_queue','num_waiting_for_retry', 'watchdog_created', 'watchdog_cancelled', 'watchdog_fired_late', 'watchdog_fired_real', 'watchdog_cancel_omitted'):
+        for key in ('accepted', 'dropped', 'fired', 'retries', 'done_ok', 'done_error', 'missing', 'num_on_wire', 'num_in_queue', 'num_waiting_for_retry', 'watchdog_created', 'watchdog_cancelled', 'watchdog_fired_late', 'watchdog_fired_real', 'watchdog_cancel_omitted'):
             val = str(stats[key])
             if key == 'missing' and stats[key] > 0:
                 val = '<font color="#ff0000">'+val+'</font>'
@@ -676,7 +699,7 @@ if __name__ == '__main__':
                                  b'Content-Length': b'5',
                                  b'Content-Type': b'text/plain',
                                  b'Authorization': b'AWS abcdefg:hijklmnop'},
-                      postdata = {'a':'bcd'})
+                      postdata = {'a': 'bcd'})
 
     print(req.get_stats_html(time.time()))
     reactor.run()
