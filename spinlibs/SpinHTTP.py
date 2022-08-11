@@ -6,7 +6,7 @@
 
 # HTTP utilities
 
-from six import PY2
+from six import PY2, PY3
 import time, re
 from ipaddress import IPv6Address, IPv6Network
 
@@ -20,9 +20,7 @@ from twisted.web.http import INTERNAL_SERVER_ERROR
 from twisted.python.failure import Failure
 
 twisted_major_version = int(twisted_version.split('.')[0])
-try:
-    unicode
-except NameError:
+if PY3:
     unicode = str
     long = int
 
@@ -157,11 +155,6 @@ def get_twisted_client_ip(request, proxy_secret = None, trust_x_forwarded = True
     if cf_con:
         return cf_con
 
-    # Incapsula is not used anymore
-#    incap = get_twisted_header(request, 'incap-client-ip')
-#    if incap:
-#        return incap
-
     # the raw IP address of the neighbor connected to us
     raw_ip = get_twisted_raw_ip(request)
 
@@ -223,10 +216,10 @@ def complete_deferred_request(body, request, http_status = None):
 
     if PY2:
         if type(body) not in (str, unicode, bytes):
-            raise Exception('unexpected body type %r: %r' % (type(body), body))
+            raise Exception('%r sent unexpected body type %r' % (request, type(body)))
     else:
         if type(body) is not bytes:
-            raise Exception('unexpected body type %r: %r' % (type(body), body))
+            raise Exception('%r sent unexpected body type %r' % (request, type(body)))
 
     if hasattr(request, '_disconnected') and request._disconnected:
         return
