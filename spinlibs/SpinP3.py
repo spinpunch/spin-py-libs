@@ -6,19 +6,22 @@
 
 # Safe handling of functions changed between Python2/Python3
 
-try:
-    dict.iteritems
-except AttributeError:
-    def iteritems(data):
-        return iter(data.items())
-    def iterkeys(data):
-        return iter(data.keys())
-    def itervalues(data):
-        return iter(data.values())
-else:
-    def iteritems(data):
+from six import PY2
+
+
+def iteritems(data):
+    if PY2:
         return data.iteritems()
-    def iterkeys(data):
+    return iter(data.items())
+
+
+def iterkeys(data):
+    if PY2:
         return data.iterkeys()
-    def itervalues(data):
+    return iter(data.keys())
+
+
+def itervalues(data):
+    if PY2:
         return data.itervalues()
+    return iter(data.values())
