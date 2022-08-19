@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# Copyright (c) 2015 Battlehouse Inc. All rights reserved.
+# Copyright (c) 2022 Battlehouse Inc. All rights reserved.
 # Use of this source code is governed by an MIT-style license that can be
 # found in the LICENSE file.
 
@@ -18,8 +18,9 @@ DEFAULT_QUALITY_VALUE = 1.0
 MAX_HEADER_LEN = 8192
 Lang = namedtuple('Lang', ('language', 'locale', 'quality'))
 
+
 def parse_accept_language(accept_language_str, default_quality=None):
-    """
+    '''
     Parse a RFC 2616 Accept-Language string.
     https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14
     :param accept_language_str: A string in RFC 2616 format.
@@ -32,7 +33,7 @@ def parse_accept_language(accept_language_str, default_quality=None):
             Lang(locale='en_US', language='en', quality=1.0),
             Lang(locale=None, language='el', quality=0.8),
         ]
-    """
+    '''
     if not accept_language_str:
         return []
 
