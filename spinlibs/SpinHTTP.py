@@ -159,7 +159,7 @@ private_ipv6_cidrs = map(IPv6Network, [u'::/128', u'::1/128', u'::ffff:0:0/96', 
 
 
 def is_private_ip(ip):
-    if ip == 'unknown':
+    if ip.lower() == 'unknown' or ip.lower() == u'unknown':
         return True
     ip = IPv6Address(ip_normalize(ip))
     # return True if IP is within any of the cidr ranges in private_ipv6_cidrs
