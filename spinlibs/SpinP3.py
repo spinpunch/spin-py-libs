@@ -7,7 +7,8 @@
 # Safe handling of functions and data types changed between Python2/Python3
 
 import json
-from six import PY2, PY3
+from six import PY2
+from six import PY3
 if PY3:
     basestring = str
     unicode = str
