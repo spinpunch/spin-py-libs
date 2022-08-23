@@ -6,12 +6,14 @@
 
 # HTTP utilities
 
-from six import PY2, PY3
+from six import PY2
+from six import PY3
 import time
 import re
-from ipaddress import IPv6Address, IPv6Network
-
-from email.utils import mktime_tz, parsedate_tz
+from ipaddress import IPv6Address
+from ipaddress import IPv6Network
+from email.utils import mktime_tz
+from email.utils import parsedate_tz
 import base64
 
 # below functions are specific to Twisted

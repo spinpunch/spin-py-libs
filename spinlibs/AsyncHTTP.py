@@ -19,7 +19,8 @@ import time
 import certifi
 from collections import deque
 from six.moves.urllib.parse import urlencode
-from six import PY2, PY3
+from six import PY2
+from six import PY3
 
 if PY3:
     unicode = str
